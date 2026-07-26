@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="mythware_controller.vcxproj" Id="afb94d53-fac8-4945-9541-681feec9cff3" />
+</Solution>
