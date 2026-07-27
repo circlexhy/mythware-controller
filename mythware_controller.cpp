@@ -52,6 +52,7 @@ bool CheckIPf(const std::string& ip);
 void AddIPs(const std::wstring& ip, const std::wstring& start, const std::wstring& end, HWND hDlg);// 添加多个IP地址
 wstring CMD_WStrToHex(const std::wstring& cmd);
 void WriteLogs(const std::string& logMessage);// 写入日志文件
+void EnableMenus(bool flag);
 //反控全部函数
 void sendPacket(const wstring& targetIP, const string& hexData);
 string generateHead();
@@ -61,6 +62,8 @@ void send_myth_Message(const wstring& targetIP, const wstring& msg);
 string strToHex(const string& cmd);
 
 vector<wstring> ipList; // 存储IP地址的列表
+
+HWND hCloseWindow, hSendMessage, hSendCommand;
 
 // Helper: 将宽字符转换为 UTF-8 std::string，替代 CW2A
 static string WideCharToUtf8(const wchar_t* wstr)
@@ -160,8 +163,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    {
       return FALSE;
    }
+
+   // 在 WM_CREATE 或 WM_INITDIALOG 中创建
+   HWND hStatic = CreateWindow(L"STATIC", L"极域UDP反控软件",
+       WS_CHILD | WS_VISIBLE | SS_LEFT,
+       195, 10, 200, 25,  // x, y, 宽度, 高度
+       hWnd, NULL, GetModuleHandle(NULL), NULL);
+
    //所有按键创建区域
-   HWND closeWindow = CreateWindowW(L"BUTTON", L"关闭窗口", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, 50, 100, 50, hWnd, (HMENU)CLOSE_WINDOW, hInstance, nullptr);
+   HWND close_Window = CreateWindowW(L"BUTTON", L"关闭窗口", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, 50, 100, 50, hWnd, (HMENU)CLOSE_WINDOW, hInstance, nullptr);
    HWND sendMessage = CreateWindowW(L"BUTTON", L"发送消息", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 200, 50, 100, 50, hWnd, (HMENU)SEND_MESSAGE, hInstance, nullptr);
    HWND sendCommand = CreateWindowW(L"BUTTON", L"发送cmd命令", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 350, 50, 100, 50, hWnd, (HMENU)SEND_COMMAND, hInstance, nullptr);
    HWND AddIP = CreateWindowW(L"BUTTON", L"添加一个ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 200, 100, 25, hWnd, (HMENU)ADDIP, hInstance, nullptr);
@@ -179,7 +189,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HFONT hFont = CreateFontW(20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
        DEFAULT_PITCH | FF_DONTCARE, L"微软雅黑");
-    SendMessage(closeWindow, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(close_Window, WM_SETFONT, (WPARAM)hFont, TRUE);
 	SendMessage(sendMessage, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(sendCommand, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(AddIP, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -187,6 +197,12 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     SendMessage(DelIP, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(ClrIP, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(IPListBox, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    //由全局变量接管句柄
+    hCloseWindow = close_Window;
+    hSendMessage = sendMessage;
+    hSendCommand = sendCommand;
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
@@ -242,9 +258,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			case CLOSE_WINDOW:
 			{
+                EnableMenus(0);
+                if (!ipList.size()) {
+                    MessageBoxW(hWnd, L"请先添加IP地址", L"提示", MB_ICONINFORMATION);
+                    EnableMenus(1);
+                    break;
+                }
 				for (int i = 0; i < ipList.size(); i++) {
 					closeWindow(ipList[i]);
 				}
+                MessageBoxW(hWnd, L"发送完成，可到logs.txt查看日志", L"提示", MB_ICONINFORMATION);
+                EnableMenus(1);
                 break;
 			}
 			case SEND_MESSAGE:
@@ -269,6 +293,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
         }
         break;
+    case WM_CTLCOLORSTATIC:
+    {
+        SetBkMode((HDC)wParam, TRANSPARENT);
+        return (LRESULT)GetStockObject(HOLLOW_BRUSH);
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -305,6 +334,19 @@ void AddIPs(const wstring& ip, const wstring& start, const wstring& end, HWND hD
         ipList.push_back(full);
         // 将完整的宽字符串指针作为 LPARAM 传递给 LB_ADDSTRING
         SendMessage(GetDlgItem(GetParent(hDlg), IP_LIST_BOX), LB_ADDSTRING, 0, (LPARAM)full.c_str());
+    }
+}
+
+void EnableMenus(bool flag) {
+    if (flag) {
+        EnableWindow(hCloseWindow, TRUE);
+        EnableWindow(hSendMessage, TRUE);
+        EnableWindow(hSendCommand, TRUE);
+    }
+    else {
+        EnableWindow(hCloseWindow, FALSE);
+        EnableWindow(hSendMessage, FALSE);
+        EnableWindow(hSendCommand, FALSE);
     }
 }
 
@@ -387,12 +429,12 @@ void sendPacket(const wstring& targetIP, const string& hexData) {
 
     if (sent != SOCKET_ERROR) {
         //cout << "发送成功: " << targetIP << " (" << sent << "字节)" << endl;
-		MessageBoxW(NULL, L"发送成功!", L"提示", MB_OK | MB_ICONINFORMATION);
+		//MessageBoxW(NULL, L"发送成功!", L"提示", MB_OK | MB_ICONINFORMATION);
 		WriteLogsW(L"successfully sent to " + targetIP + L" (" + to_wstring(sent) + L" bytes)");
     }
     else {
         //cerr << "发送失败: " << targetIP << " 错误码:" <<  << endl;
-		MessageBoxW(NULL, L"发送失败!", L"提示", MB_OK | MB_ICONERROR);
+		//MessageBoxW(NULL, L"发送失败!", L"提示", MB_OK | MB_ICONERROR);
 		WriteLogsW(L"failed to send to " + targetIP + L" error code: " + to_wstring(WSAGetLastError()));
     }
 
@@ -561,6 +603,10 @@ INT_PTR CALLBACK AddMultipleIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPA
             GetDlgItemText(hDlg, ADDIP2_WIN_EDIT, ipBuffer, 16);
             GetDlgItemText(hDlg, ADDIP2_WIN_EDIT_START, startBuf, 16);
             GetDlgItemText(hDlg, ADDIP2_WIN_EDIT_END, endBuf, 16);
+            if (ipBuffer[0] == L'\0' || startBuf[0] == L'\0' || endBuf[0] == L'\0') {
+                MessageBoxW(hDlg, L"内容无效", L"提示", MB_ICONERROR);
+                return (INT_PTR)FALSE;
+            }
             string ipAddress = WideCharToUtf8(ipBuffer);
             string start = WideCharToUtf8(startBuf);
             string end = WideCharToUtf8(endBuf);
@@ -607,12 +653,17 @@ INT_PTR CALLBACK SendMsgDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
             return (INT_PTR)TRUE;
         }
         case SENDMSG_WIN_OK: {
+            if (!ipList.size()) {
+                MessageBoxW(hDlg, L"请先添加IP地址", L"提示", MB_ICONINFORMATION);
+                return (INT_PTR)FALSE;
+            }
             wchar_t msgBuffer[1025];
             GetDlgItemText(hDlg, SENDMSG_WIN_EDIT, msgBuffer, 1025);
             wstring messageToSend(msgBuffer);
             for (const auto& ip : ipList) {
                 send_myth_Message(ip, messageToSend);
             }
+            MessageBoxW(hDlg, L"发送完成，可到logs.txt查看日志", L"提示", MB_ICONINFORMATION);
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR)TRUE;
         }
@@ -637,6 +688,10 @@ INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
 			return (INT_PTR)TRUE;
 		}
 		case SENDCMD_WIN_OK: {
+            if (!ipList.size()) {
+                MessageBoxW(hDlg, L"请先添加IP地址", L"提示", MB_ICONINFORMATION);
+                return (INT_PTR)FALSE;
+            }
 			char cmdBuffer[1025];
 			GetDlgItemTextA(hDlg, SENDCMD_WIN_EDIT, cmdBuffer, 1025);
 			string commandToSend(cmdBuffer);// 获取用户输入的命令
@@ -649,6 +704,7 @@ INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
 			for (const auto& ip : ipList) {
 				sendPacket(ip, MsgHex);
 			}
+            MessageBoxW(hDlg, L"发送完成，可到logs.txt查看日志", L"提示", MB_ICONINFORMATION);
 			EndDialog(hDlg, LOWORD(wParam));
 			return (INT_PTR)TRUE;
 		}
