@@ -11,7 +11,8 @@ ps: 本软件仅供学习交流使用，请勿用于非法用途，作者不承�
 
 ### 软件截图：
 
-<img width="940" height="947" alt="{B44661D4-1E02-4171-ADC0-A084BA1C0684}" src="https://github.com/user-attachments/assets/260406bf-2c09-47db-bac6-dedc6c9746e0" />
+<img width="608" height="606" alt="image" src="https://github.com/user-attachments/assets/13e42cb7-340b-46e8-aa70-a3e6db19fb13" />
+
 
 ### 软件特点：
 
@@ -50,6 +51,11 @@ ps: 本软件仅供学习交流使用，请勿用于非法用途，作者不承�
 可以在自己的cmd上键入help查看更多命令。
 
 ### 更新日志：
+
+### 0.0.3
+
+1. 修复了给多个IP发送命令时每次提示发送成功而卡住的bug，最终发送结果须去日志查看；
+2. 主窗口新增标题。
 
 ### 0.0.2
 
