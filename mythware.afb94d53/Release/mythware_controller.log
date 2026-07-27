@@ -1,8 +1,0 @@
-﻿  mythware_controller.cpp
-E:\mythware_controller\mythware_controller\mythware_controller.cpp(245,23): warning C4018: '<': 有符号/无符号不匹配
-  正在生成代码
-  1 of 560 functions ( 0.2%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    1 functions had inline decision re-evaluated but remain unchanged
-  已完成代码的生成
-  mythware_controller.vcxproj -> E:\mythware_controller\mythware_controller\Release\mythware_controller.exe
