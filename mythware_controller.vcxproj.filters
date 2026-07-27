@@ -49,4 +49,9 @@
   <ItemGroup>
     <Text Include="README.txt" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="abouttex.bin">
+      <Filter>资源文件</Filter>
+    </None>
+  </ItemGroup>
 </Project>
