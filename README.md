@@ -11,7 +11,7 @@
 
 ### 软件截图：
 
-<img width="608" height="606" alt="image" src="https://github.com/user-attachments/assets/13e42cb7-340b-46e8-aa70-a3e6db19fb13" />
+<img width="598" height="603" alt="image" src="https://github.com/user-attachments/assets/79793e20-3306-4db7-ba4d-dcac753942c7" />
 
 
 ### 软件特点：
@@ -50,7 +50,13 @@
 
 可以在自己的cmd上键入help查看更多命令。
 
+4.修改密码：可以修改他人的极域学生端密码，让其无法进入设置切换频道。
+
 ### 更新日志：
+
+### 0.0.4
+
+新增“修改密码”反控功能，可以修改别人的极域密码了！
 
 ### 0.0.3
 
