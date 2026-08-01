@@ -11,7 +11,7 @@
 
 ### 示例视频
 
-<video src="https://github.com/circlexhy/mythware-controller/releases/download/mythware005/demo.mp4" controls="controls" width="1920" height="1022"></video>
+<video src="https://github.com/circlexhy/mythware-controller/releases/download/mythware005/demo.mp4" controls></video>
 
 ### 软件截图：
 
