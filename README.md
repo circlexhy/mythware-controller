@@ -9,9 +9,17 @@
 
 （暂时没有设计图标，我是用VS2026编译的，图标是VS默认的）
 
+### 示例视频
+
+<video width="1920" height="1022" controls>
+<source src="https://github.com/circlexhy/mythware-controller/releases/download/mythware005/demo.mp4" type="video/mp4">
+</video>
+
+
+
 ### 软件截图：
 
-<img width="598" height="603" alt="image" src="https://github.com/user-attachments/assets/79793e20-3306-4db7-ba4d-dcac753942c7" />
+<img width="599" height="602" alt="image" src="https://github.com/user-attachments/assets/9e72d0f5-7705-428e-b48f-f27a7464a015" />
 
 
 ### 软件特点：
