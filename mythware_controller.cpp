@@ -24,6 +24,7 @@
 #define CLRIP 1023
 #define DELIP 1024
 #define CHANGE_PASSWORD 2001
+#define CHANGE_NAME 2002
 
 #pragma comment(lib,"ws2_32.lib")
 using namespace std;
@@ -48,6 +49,7 @@ INT_PTR CALLBACK AddMultipleIPDialog(HWND hDlg, UINT message, WPARAM wParam, LPA
 INT_PTR CALLBACK SendMsgDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK SendCmdDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK ChangePasswordDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK ChangeNameDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 bool CheckIP(const std::string& ip);
 bool CheckIPf(const std::string& ip);
@@ -59,6 +61,7 @@ void EnableMenus(bool flag);
 void sendPacket(const wstring& targetIP, const string& hexData);
 string generateHead();
 string generateHead_pw();
+string randomEnd();
 void closeWindow(const wstring& targetIP);
 string wstringToHex(const wstring& wstr);
 void send_myth_Message(const wstring& targetIP, const wstring& msg);
@@ -66,7 +69,7 @@ string strToHex(const string& cmd);
 
 vector<wstring> ipList; // 存储IP地址的列表
 
-HWND hCloseWindow, hSendMessage, hSendCommand, hChangePassword;
+HWND hCloseWindow, hSendMessage, hSendCommand, hChangePassword, hChangeName;
 
 // Helper: 将宽字符转换为 UTF-8 std::string，替代 CW2A
 static string WideCharToUtf8(const wchar_t* wstr)
@@ -182,6 +185,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HWND DelIP = CreateWindowW(L"BUTTON", L"删除选中ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 280, 100, 25, hWnd, (HMENU)DELIP, hInstance, nullptr);
    HWND ClrIP = CreateWindowW(L"BUTTON", L"清空所有ip", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 270, 320, 100, 25, hWnd, (HMENU)CLRIP, hInstance, nullptr);
    HWND ChangePassword = CreateWindowW(L"BUTTON", L"修改密码", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 50, 125, 100, 25, hWnd, (HMENU)CHANGE_PASSWORD, hInstance, nullptr);
+   HWND ChangeName = CreateWindowW(L"BUTTON", L"学生端改名", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 200, 125, 100, 25, hWnd, (HMENU)CHANGE_NAME, hInstance, nullptr);
 
    //IP列表
    HWND IPListBox = CreateWindowW(L"LISTBOX", NULL,
@@ -203,12 +207,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     SendMessage(ChangePassword, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(IPListBox, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(ChangeName, WM_SETFONT, (WPARAM)hFont, TRUE);
 
     //由全局变量接管句柄
     hCloseWindow = close_Window;
     hSendMessage = sendMessage;
     hSendCommand = sendCommand;
 	hChangePassword = ChangePassword;
+    hChangeName = ChangeName;
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
@@ -291,6 +297,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DialogBox(hInst, MAKEINTRESOURCE(CHANGEPASSWORD_WIN), hWnd, ChangePasswordDialog);
 				break;
 			}
+            case CHANGE_NAME:
+            {
+                DialogBox(hInst, MAKEINTRESOURCE(CHANGENAME_WIN), hWnd, ChangeNameDialog);
+                break;
+
+            }
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
@@ -354,12 +366,14 @@ void EnableMenus(bool flag) {
         EnableWindow(hSendMessage, TRUE);
         EnableWindow(hSendCommand, TRUE);
         EnableWindow(hChangePassword, TRUE);
+        EnableWindow(hChangeName, TRUE);
     }
     else {
         EnableWindow(hCloseWindow, FALSE);
         EnableWindow(hSendMessage, FALSE);
         EnableWindow(hSendCommand, FALSE);
         EnableWindow(hChangePassword, FALSE);
+        EnableWindow(hChangeName, FALSE);
     }
 }
 
@@ -475,6 +489,13 @@ string generateHead_pw() {
 		"0000" +
 		to_string(dis(gen)) + to_string(dis(gen)) + to_string(dis(gen));*/
 	return rs;
+}
+
+string randomEnd() {
+	const string randomStr[3] = {"00006c005300650074005c0043006f006e00740072006f006c005c004e006500740077006f0072006b00",
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "00001e16e102023421160000a046000020419a99993fa005100001000000000000000000000000000000"};
+    return randomStr[dis(gen) % 3];
 }
 
 // 关闭窗口函数
@@ -784,4 +805,63 @@ INT_PTR CALLBACK ChangePasswordDialog(HWND hDlg, UINT message, WPARAM wParam, LP
 	}
 	}
 	return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK ChangeNameDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message) {
+    case WM_INITDIALOG: {
+        SendDlgItemMessage(hDlg, CHANGENAME_WIN_ID_EDIT, EM_SETLIMITTEXT, 2, 0);
+        SendDlgItemMessage(hDlg, CHANGENAME_WIN_NAME_EDIT, EM_SETLIMITTEXT, 31, 0);
+		SendDlgItemMessage(hDlg, CHANGENAME_WIN_USERNAME_EDIT, EM_SETLIMITTEXT, 1024, 0);
+		SetWindowTextW(GetDlgItem(hDlg, CHANGENAME_WIN_USERNAME_EDIT), L"admin");
+        return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND: {
+        switch (LOWORD(wParam)) {
+        case CHANGENAME_WIN_CANCEL: {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        case CHANGENAME_WIN_OK: {
+            if (!ipList.size()) {
+                MessageBoxW(hDlg, L"请先添加IP地址", L"提示", MB_ICONINFORMATION);
+                return (INT_PTR)FALSE;
+            }
+            wchar_t nameBuffer[32], usernameBuffer[1025];
+            char idBuffer[3];
+            GetDlgItemTextA(hDlg, CHANGENAME_WIN_ID_EDIT, idBuffer, 3);
+            GetDlgItemText(hDlg, CHANGENAME_WIN_NAME_EDIT, nameBuffer, 32);
+            GetDlgItemText(hDlg, CHANGENAME_WIN_USERNAME_EDIT, usernameBuffer, 1025);
+            if (idBuffer[0] == L'\0' || nameBuffer[0] == L'\0' || usernameBuffer[0] == L'\0') {
+                MessageBoxW(hDlg, L"输入有误，请重新输入", L"提示", MB_ICONINFORMATION);
+                return (INT_PTR)FALSE;
+            }
+
+            wstring name(nameBuffer), username(usernameBuffer);
+			string id(idBuffer);   
+            string nameHex = wstringToHex(name) + "0000";
+			string unHex = wstringToHex(username);
+            string head = "47434d4e000001004400000066b1e4923f9a364a943a3da3bd976041";
+            string randend = randomEnd();
+            string endHex = to_string(dis(gen)) + "00" + to_string(dis(gen)) + "00" + to_string(dis(gen)) + "00" + to_string(dis(gen)) + "00" + unHex + randend;
+            //string endHex;
+
+            string MsgHex = head + id + "000000" + nameHex;
+            //判断nameHex的长度决定是否需要补充尾部，保证数据为96字节(192字符)
+            int index = MsgHex.length() - 72;
+			for (int i = index; i < endHex.length(); i++) {
+				MsgHex += endHex[i];
+			}
+            for (const auto& ip : ipList) {
+                sendPacket(ip, MsgHex);
+            }
+            MessageBoxW(hDlg, L"发送完成，可到logs.txt查看日志", L"提示", MB_ICONINFORMATION);
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        }
+    }
+    }
+    return (INT_PTR)FALSE;
 }
